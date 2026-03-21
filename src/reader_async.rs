@@ -326,9 +326,9 @@ impl WrappedFile {
         let (sender, receiver) = oneshot::channel();
         let file = self.inner.clone();
         spawn_local(async move {
-            let subset_blob = if (range.start <= i32::MAX as u64) && (range.end <= i32::MAX as u64) {
-                file
-                .slice_with_i32_and_i32(
+            let subset_blob = if (range.start <= i32::MAX as u64) && (range.end <= i32::MAX as u64)
+            {
+                file.slice_with_i32_and_i32(
                     range.start.try_into().unwrap(),
                     range.end.try_into().unwrap(),
                 )
