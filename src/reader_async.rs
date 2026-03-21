@@ -326,12 +326,24 @@ impl WrappedFile {
         let (sender, receiver) = oneshot::channel();
         let file = self.inner.clone();
         spawn_local(async move {
-            let subset_blob = file
+            let subset_blob = if (range.start <= i32::MAX as u64) && (range.end <= i32::MAX as u64) {
+                file
                 .slice_with_i32_and_i32(
                     range.start.try_into().unwrap(),
                     range.end.try_into().unwrap(),
                 )
-                .unwrap();
+                .unwrap()
+            } else {
+                let start = range.start as f64;
+                if start as u64 != range.start {
+                    panic!("Cannot safely convert start index of {range:?}");
+                }
+                let end = range.end as f64;
+                if end as u64 != range.end {
+                    panic!("Cannot safely convert start index of {range:?}");
+                }
+                file.slice_with_f64_and_f64(start, end).unwrap()
+            };
             let buf = JsFuture::from(subset_blob.array_buffer()).await.unwrap();
             let out_vec = Uint8Array::new_with_byte_offset(&buf, 0).to_vec();
             sender.send(out_vec).unwrap();
