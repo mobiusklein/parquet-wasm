@@ -1,3 +1,4 @@
+use parquet::data_type::AsBytes;
 use wasm_bindgen::prelude::*;
 
 use crate::common::properties::{Compression, Encoding};
@@ -241,6 +242,116 @@ impl ColumnChunkMetaData {
     #[wasm_bindgen(js_name = uncompressedSize)]
     pub fn uncompressed_size(&self) -> f64 {
         self.0.uncompressed_size() as f64
+    }
+
+    #[wasm_bindgen]
+    pub fn statistics(&self) -> wasm_bindgen::JsValue {
+        let v = if let Some(stat) = self.0.statistics() {
+            match stat {
+                parquet::file::statistics::Statistics::Boolean(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().copied(),
+                        value_statistics.max_opt().copied(),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+                parquet::file::statistics::Statistics::Int32(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().copied(),
+                        value_statistics.max_opt().copied(),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+                parquet::file::statistics::Statistics::Int64(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().copied(),
+                        value_statistics.max_opt().copied(),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+                parquet::file::statistics::Statistics::Int96(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().copied().map(|v| v.to_seconds()),
+                        value_statistics.max_opt().copied().map(|v| v.to_seconds()),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+                parquet::file::statistics::Statistics::Float(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().copied(),
+                        value_statistics.max_opt().copied(),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+                parquet::file::statistics::Statistics::Double(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().copied(),
+                        value_statistics.max_opt().copied(),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+                parquet::file::statistics::Statistics::ByteArray(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().map(|v| v.as_bytes().to_vec()),
+                        value_statistics.max_opt().map(|v| v.as_bytes().to_vec()),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+                parquet::file::statistics::Statistics::FixedLenByteArray(value_statistics) => {
+                    serde_wasm_bindgen::to_value(&JsStatistics::new(
+                        value_statistics.min_opt().map(|v| v.as_bytes().to_vec()),
+                        value_statistics.max_opt().map(|v| v.as_bytes().to_vec()),
+                        value_statistics.distinct_count(),
+                        value_statistics.null_count_opt(),
+                        value_statistics.max_is_exact(),
+                        value_statistics.min_is_exact()
+                    )).ok()
+                },
+            }
+        } else {
+            None
+        };
+        v.unwrap_or_else(|| JsValue::null())
+    }
+}
+
+#[derive(serde::Serialize)]
+pub struct JsStatistics<T: serde::Serialize> {
+    pub min_value: Option<T>,
+    pub max_value: Option<T>,
+    // Distinct count could be omitted in some cases
+    pub distinct_count: Option<u64>,
+    pub null_count: Option<u64>,
+
+    // Whether or not the min or max values are exact, or truncated.
+    pub is_max_value_exact: bool,
+    pub is_min_value_exact: bool,
+}
+
+impl<T: serde::Serialize> JsStatistics<T> {
+    pub fn new(min_value: Option<T>, max_value: Option<T>, distinct_count: Option<u64>, null_count: Option<u64>, is_max_value_exact: bool, is_min_value_exact: bool) -> Self {
+        Self { min_value, max_value, distinct_count, null_count, is_max_value_exact, is_min_value_exact }
     }
 }
 
