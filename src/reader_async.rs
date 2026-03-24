@@ -11,9 +11,9 @@ use crate::utils;
 use futures::channel::oneshot;
 use futures::future::BoxFuture;
 use object_store::coalesce_ranges;
+use std::io;
 use std::ops::Range;
 use std::sync::Arc;
-use std::io;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -329,12 +329,19 @@ impl WrappedFile {
         let file = self.inner.clone();
         spawn_local(async move {
             if range.start <= utils::MAX_EXACT_INTEGER && range.end <= utils::MAX_EXACT_INTEGER {
-                let subset_blob = file.slice_with_f64_and_f64(range.start as f64, range.end as f64).unwrap();
+                let subset_blob = file
+                    .slice_with_f64_and_f64(range.start as f64, range.end as f64)
+                    .unwrap();
                 let buf = JsFuture::from(subset_blob.array_buffer()).await.unwrap();
                 let out_vec = Uint8Array::new_with_byte_offset(&buf, 0).to_vec();
                 sender.send(Ok(out_vec)).unwrap();
             } else {
-                sender.send(Err(io::Error::new(io::ErrorKind::Unsupported, format!("{range:?} is too large to convert into a Blob slice")))).unwrap();
+                sender
+                    .send(Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        format!("{range:?} is too large to convert into a Blob slice"),
+                    )))
+                    .unwrap();
             };
         });
 
@@ -350,7 +357,7 @@ async fn get_bytes_file(
     spawn_local(async move {
         let result = match file.get_bytes(range).await {
             Ok(result) => Ok(Bytes::from(result)),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         };
         sender.send(result).unwrap()
     });
