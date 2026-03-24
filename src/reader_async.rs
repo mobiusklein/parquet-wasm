@@ -7,11 +7,13 @@ use crate::common::fetch::{
 use crate::error::{Result, WasmResult};
 use crate::read_options::{JsReaderOptions, ReaderOptions};
 use crate::reader::cast_metadata_view_types;
+use crate::utils;
 use futures::channel::oneshot;
 use futures::future::BoxFuture;
 use object_store::coalesce_ranges;
 use std::ops::Range;
 use std::sync::Arc;
+use std::io;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -320,33 +322,20 @@ impl WrappedFile {
         Self { inner, size }
     }
 
-    pub async fn get_bytes(&mut self, range: Range<u64>) -> Vec<u8> {
+    pub async fn get_bytes(&mut self, range: Range<u64>) -> io::Result<Vec<u8>> {
         use js_sys::Uint8Array;
         use wasm_bindgen_futures::JsFuture;
         let (sender, receiver) = oneshot::channel();
         let file = self.inner.clone();
         spawn_local(async move {
-            let subset_blob = if (range.start <= i32::MAX as u64) && (range.end <= i32::MAX as u64)
-            {
-                file.slice_with_i32_and_i32(
-                    range.start.try_into().unwrap(),
-                    range.end.try_into().unwrap(),
-                )
-                .unwrap()
+            if range.start <= utils::MAX_EXACT_INTEGER && range.end <= utils::MAX_EXACT_INTEGER {
+                let subset_blob = file.slice_with_f64_and_f64(range.start as f64, range.end as f64).unwrap();
+                let buf = JsFuture::from(subset_blob.array_buffer()).await.unwrap();
+                let out_vec = Uint8Array::new_with_byte_offset(&buf, 0).to_vec();
+                sender.send(Ok(out_vec)).unwrap();
             } else {
-                let start = range.start as f64;
-                if start as u64 != range.start {
-                    panic!("Cannot safely convert start index of {range:?}");
-                }
-                let end = range.end as f64;
-                if end as u64 != range.end {
-                    panic!("Cannot safely convert start index of {range:?}");
-                }
-                file.slice_with_f64_and_f64(start, end).unwrap()
+                sender.send(Err(io::Error::new(io::ErrorKind::Unsupported, format!("{range:?} is too large to convert into a Blob slice")))).unwrap();
             };
-            let buf = JsFuture::from(subset_blob.array_buffer()).await.unwrap();
-            let out_vec = Uint8Array::new_with_byte_offset(&buf, 0).to_vec();
-            sender.send(out_vec).unwrap();
         });
 
         receiver.await.unwrap()
@@ -359,10 +348,13 @@ async fn get_bytes_file(
 ) -> parquet::errors::Result<Bytes> {
     let (sender, receiver) = oneshot::channel();
     spawn_local(async move {
-        let result: Bytes = file.get_bytes(range).await.into();
+        let result = match file.get_bytes(range).await {
+            Ok(result) => Ok(Bytes::from(result)),
+            Err(e) => Err(e)
+        };
         sender.send(result).unwrap()
     });
-    let data = receiver.await.unwrap();
+    let data = receiver.await.unwrap()?;
     Ok(data)
 }
 
@@ -387,11 +379,11 @@ impl AsyncFileReader for JsFileReader {
             let (sender, receiver) = oneshot::channel();
             let mut file = self.file.clone();
             spawn_local(async move {
-                let result: Bytes = file.get_bytes(range).await.into();
+                let result = file.get_bytes(range).await.map(Bytes::from);
                 sender.send(result).unwrap()
             });
             let data = receiver.await.unwrap();
-            Ok(data)
+            Ok(data?)
         }
         .boxed()
     }
