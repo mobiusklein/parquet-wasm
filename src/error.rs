@@ -52,6 +52,7 @@ impl From<ParquetWasmError> for ParquetError {
                 ParquetError::ArrowError(arrow_error.to_string())
             }
             ParquetWasmError::ParquetError(parquet_error) => *parquet_error,
+            #[cfg(feature = "async")]
             ParquetWasmError::HTTPError(error) => ParquetError::External(error),
             ParquetWasmError::PlatformSupportError(x) => ParquetError::General(x),
             e => ParquetError::General(e.to_string()),
