@@ -11,7 +11,7 @@ use crate::utils;
 use futures::channel::oneshot;
 use futures::future::BoxFuture;
 use object_store::coalesce_ranges;
-use std::io;
+use parquet::errors::ParquetError;
 use std::ops::Range;
 use std::sync::Arc;
 use wasm_bindgen::prelude::*;
@@ -322,7 +322,7 @@ impl WrappedFile {
         Self { inner, size }
     }
 
-    pub async fn get_bytes(&mut self, range: Range<u64>) -> io::Result<Vec<u8>> {
+    pub async fn get_bytes(&mut self, range: Range<u64>) -> crate::error::Result<Vec<u8>> {
         use js_sys::Uint8Array;
         use wasm_bindgen_futures::JsFuture;
         let (sender, receiver) = oneshot::channel();
@@ -337,8 +337,7 @@ impl WrappedFile {
                 sender.send(Ok(out_vec)).unwrap();
             } else {
                 sender
-                    .send(Err(io::Error::new(
-                        io::ErrorKind::Unsupported,
+                    .send(Err(crate::error::ParquetWasmError::PlatformSupportError(
                         format!("{range:?} is too large to convert into a Blob slice"),
                     )))
                     .unwrap();
@@ -355,14 +354,14 @@ async fn get_bytes_file(
 ) -> parquet::errors::Result<Bytes> {
     let (sender, receiver) = oneshot::channel();
     spawn_local(async move {
-        let result = match file.get_bytes(range).await {
-            Ok(result) => Ok(Bytes::from(result)),
-            Err(e) => Err(e),
-        };
+        let result = file
+            .get_bytes(range)
+            .await
+            .map(Bytes::from)
+            .map_err(ParquetError::from);
         sender.send(result).unwrap()
     });
-    let data = receiver.await.unwrap()?;
-    Ok(data)
+    receiver.await.unwrap()
 }
 
 #[derive(Debug, Clone)]
@@ -386,11 +385,14 @@ impl AsyncFileReader for JsFileReader {
             let (sender, receiver) = oneshot::channel();
             let mut file = self.file.clone();
             spawn_local(async move {
-                let result = file.get_bytes(range).await.map(Bytes::from);
+                let result = file
+                    .get_bytes(range)
+                    .await
+                    .map(Bytes::from)
+                    .map_err(ParquetError::from);
                 sender.send(result).unwrap()
             });
-            let data = receiver.await.unwrap();
-            Ok(data?)
+            receiver.await.unwrap()
         }
         .boxed()
     }
