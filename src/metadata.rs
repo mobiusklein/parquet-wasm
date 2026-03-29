@@ -39,10 +39,126 @@ impl ParquetMetaData {
             .collect()
     }
 
-    // /// Returns the column index for this file if loaded
-    // pub fn column_index(&self) -> Option<ParquetColumnIndex> {
-    //     self.0.column_index()
-    // }
+    /// Returns the column index for this column from this file if loaded
+    #[wasm_bindgen(js_name = columnIndexFor)]
+    pub fn column_index_for(
+        &self,
+        column: usize,
+    ) -> Result<Vec<JsValue>, serde_wasm_bindgen::Error> {
+        let col_indices = match self.0.column_index() {
+            Some(x) => x,
+            None => return Ok(Default::default()),
+        };
+        let offset_indices = match self.0.offset_index() {
+            Some(x) => x,
+            None => return Ok(Default::default()),
+        };
+        let mut pages_acc: Vec<JsValue> = Vec::new();
+        for (col_indices_rg, offset_indices_rg) in col_indices.iter().zip(offset_indices.iter()) {
+            let col = col_indices_rg.get(column);
+            let offset = offset_indices_rg.get(column);
+            match (col, offset) {
+                (Some(col), Some(offset)) => match col {
+                    parquet::file::page_index::index::Index::NONE => continue,
+                    parquet::file::page_index::index::Index::BOOLEAN(native_index) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min,
+                                page.max,
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    }
+                    parquet::file::page_index::index::Index::INT32(native_index) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min,
+                                page.max,
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    }
+                    parquet::file::page_index::index::Index::INT64(native_index) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min,
+                                page.max,
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    }
+                    parquet::file::page_index::index::Index::FLOAT(native_index) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min,
+                                page.max,
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    }
+                    parquet::file::page_index::index::Index::DOUBLE(native_index) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min,
+                                page.max,
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    }
+                    parquet::file::page_index::index::Index::INT96(native_index) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min().map(|v| v.to_nanos()),
+                                page.max().map(|v| v.to_nanos()),
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    },
+                    parquet::file::page_index::index::Index::BYTE_ARRAY(native_index) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min().map(|v| v.data().to_vec()),
+                                page.max().map(|v| v.data().to_vec()),
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    }
+                    parquet::file::page_index::index::Index::FIXED_LEN_BYTE_ARRAY(
+                        native_index,
+                    ) => {
+                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        {
+                            pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
+                                page.min().map(|v| v.data().to_vec()),
+                                page.max().map(|v| v.data().to_vec()),
+                                loc.first_row_index,
+                                page.null_count(),
+                            ))?);
+                        }
+                    },
+                },
+                (_, _) => {
+                    continue;
+                }
+            }
+        }
+
+        Ok(pages_acc)
+    }
 }
 
 impl From<parquet::file::metadata::ParquetMetaData> for ParquetMetaData {
@@ -255,9 +371,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
                 parquet::file::statistics::Statistics::Int32(value_statistics) => {
                     serde_wasm_bindgen::to_value(&JsStatistics::new(
                         value_statistics.min_opt().copied(),
@@ -265,9 +382,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
                 parquet::file::statistics::Statistics::Int64(value_statistics) => {
                     serde_wasm_bindgen::to_value(&JsStatistics::new(
                         value_statistics.min_opt().copied(),
@@ -275,9 +393,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
                 parquet::file::statistics::Statistics::Int96(value_statistics) => {
                     serde_wasm_bindgen::to_value(&JsStatistics::new(
                         value_statistics.min_opt().copied().map(|v| v.to_seconds()),
@@ -285,9 +404,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
                 parquet::file::statistics::Statistics::Float(value_statistics) => {
                     serde_wasm_bindgen::to_value(&JsStatistics::new(
                         value_statistics.min_opt().copied(),
@@ -295,9 +415,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
                 parquet::file::statistics::Statistics::Double(value_statistics) => {
                     serde_wasm_bindgen::to_value(&JsStatistics::new(
                         value_statistics.min_opt().copied(),
@@ -305,9 +426,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
                 parquet::file::statistics::Statistics::ByteArray(value_statistics) => {
                     serde_wasm_bindgen::to_value(&JsStatistics::new(
                         value_statistics.min_opt().map(|v| v.as_bytes().to_vec()),
@@ -315,9 +437,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
                 parquet::file::statistics::Statistics::FixedLenByteArray(value_statistics) => {
                     serde_wasm_bindgen::to_value(&JsStatistics::new(
                         value_statistics.min_opt().map(|v| v.as_bytes().to_vec()),
@@ -325,9 +448,10 @@ impl ColumnChunkMetaData {
                         value_statistics.distinct_count(),
                         value_statistics.null_count_opt(),
                         value_statistics.max_is_exact(),
-                        value_statistics.min_is_exact()
-                    )).ok()
-                },
+                        value_statistics.min_is_exact(),
+                    ))
+                    .ok()
+                }
             }
         } else {
             None
@@ -350,8 +474,22 @@ pub struct JsStatistics<T: serde::Serialize> {
 }
 
 impl<T: serde::Serialize> JsStatistics<T> {
-    pub fn new(min_value: Option<T>, max_value: Option<T>, distinct_count: Option<u64>, null_count: Option<u64>, is_max_value_exact: bool, is_min_value_exact: bool) -> Self {
-        Self { min_value, max_value, distinct_count, null_count, is_max_value_exact, is_min_value_exact }
+    pub fn new(
+        min_value: Option<T>,
+        max_value: Option<T>,
+        distinct_count: Option<u64>,
+        null_count: Option<u64>,
+        is_max_value_exact: bool,
+        is_min_value_exact: bool,
+    ) -> Self {
+        Self {
+            min_value,
+            max_value,
+            distinct_count,
+            null_count,
+            is_max_value_exact,
+            is_min_value_exact,
+        }
     }
 }
 
@@ -364,5 +502,24 @@ impl From<parquet::file::metadata::ColumnChunkMetaData> for ColumnChunkMetaData 
 impl From<ColumnChunkMetaData> for parquet::file::metadata::ColumnChunkMetaData {
     fn from(value: ColumnChunkMetaData) -> Self {
         value.0
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct Page<T: serde::Serialize> {
+    pub min: Option<T>,
+    pub max: Option<T>,
+    pub start_row: i64,
+    pub null_count: Option<i64>,
+}
+
+impl<T: serde::Serialize> Page<T> {
+    pub fn new(min: Option<T>, max: Option<T>, start_row: i64, null_count: Option<i64>) -> Self {
+        Self {
+            min,
+            max,
+            start_row,
+            null_count,
+        }
     }
 }
