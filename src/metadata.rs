@@ -54,99 +54,165 @@ impl ParquetMetaData {
             None => return Ok(Default::default()),
         };
         let mut pages_acc: Vec<JsValue> = Vec::new();
-        for (col_indices_rg, offset_indices_rg) in col_indices.iter().zip(offset_indices.iter()) {
+        let mut total_rows = 0;
+        for ((rg_i, col_indices_rg), offset_indices_rg) in col_indices.iter().enumerate().zip(offset_indices.iter()) {
             let col = col_indices_rg.get(column);
             let offset = offset_indices_rg.get(column);
+            let rg_num_rows = self.0.row_group(rg_i).num_rows();
             match (col, offset) {
                 (Some(col), Some(offset)) => match col {
                     parquet::file::page_index::index::Index::NONE => continue,
                     parquet::file::page_index::index::Index::BOOLEAN(native_index) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min,
                                 page.max,
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     }
                     parquet::file::page_index::index::Index::INT32(native_index) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min,
                                 page.max,
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     }
                     parquet::file::page_index::index::Index::INT64(native_index) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min,
                                 page.max,
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     }
                     parquet::file::page_index::index::Index::FLOAT(native_index) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min,
                                 page.max,
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     }
                     parquet::file::page_index::index::Index::DOUBLE(native_index) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min,
                                 page.max,
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     }
                     parquet::file::page_index::index::Index::INT96(native_index) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min().map(|v| v.to_nanos()),
                                 page.max().map(|v| v.to_nanos()),
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     },
                     parquet::file::page_index::index::Index::BYTE_ARRAY(native_index) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min().map(|v| v.data().to_vec()),
                                 page.max().map(|v| v.data().to_vec()),
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     }
                     parquet::file::page_index::index::Index::FIXED_LEN_BYTE_ARRAY(
                         native_index,
                     ) => {
-                        for (page, loc) in native_index.indexes.iter().zip(offset.page_locations())
+                        for (pg_i, (page, loc)) in native_index.indexes.iter().zip(offset.page_locations()).enumerate()
                         {
+                            let end_row =
+                            if let Some(next_loc) = offset.page_locations().get(pg_i + 1) {
+                                next_loc.first_row_index + total_rows
+                            } else {
+                                rg_num_rows + total_rows
+                            };
                             pages_acc.push(serde_wasm_bindgen::to_value(&Page::new(
                                 page.min().map(|v| v.data().to_vec()),
                                 page.max().map(|v| v.data().to_vec()),
                                 loc.first_row_index,
                                 page.null_count(),
+                                rg_i,
+                                end_row
                             ))?);
                         }
                     },
@@ -155,6 +221,8 @@ impl ParquetMetaData {
                     continue;
                 }
             }
+
+            total_rows += rg_num_rows;
         }
 
         Ok(pages_acc)
@@ -511,15 +579,19 @@ pub struct Page<T: serde::Serialize> {
     pub max: Option<T>,
     pub start_row: i64,
     pub null_count: Option<i64>,
+    pub row_group_index: usize,
+    pub end_row: i64,
 }
 
 impl<T: serde::Serialize> Page<T> {
-    pub fn new(min: Option<T>, max: Option<T>, start_row: i64, null_count: Option<i64>) -> Self {
+    pub fn new(min: Option<T>, max: Option<T>, start_row: i64, null_count: Option<i64>, row_group_index: usize, end_row: i64) -> Self {
         Self {
             min,
             max,
             start_row,
             null_count,
+            row_group_index,
+            end_row
         }
     }
 }
